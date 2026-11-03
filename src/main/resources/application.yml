@@ -1,0 +1,43 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: pagamento-service
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      pagamentoService:
+        registerHealthIndicator: true
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        slowCallRateThreshold: 50
+        slowCallDurationThreshold: 2s
+        waitDurationInOpenState: 10s
+        permittedNumberOfCallsInHalfOpenState: 3
+
+  # Configuração de Retry adicionada logo abaixo do circuitbreaker
+  retry:
+    instances:
+      pagamentoService:
+        maxAttempts: 3                # Número máximo de tentativas (1 original + 2 retries)
+        waitDuration: 1s              # Tempo de espera entre cada tentativa
+        enableExponentialBackoff: true # Aumenta o tempo de espera progressivamente
+        exponentialBackoffMultiplier: 2
+        retryExceptions:
+          - java.lang.RuntimeException  # Exceções que acionam o Retry
+
+  bulkhead:
+    instances:
+      pagamentoService:
+        maxConcurrentCalls: 5             # Limita a 5 chamadas simultâneas
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, metrics, circuitbreakers
+  health:
+    circuitbreakers:
+      enabled: true
