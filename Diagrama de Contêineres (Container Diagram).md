@@ -1,3 +1,7 @@
+## 2. C4 Nível 2: Diagrama de Contêineres (Container Diagram)
+Este diagrama detalha a arquitetura interna de microsserviços em Spring Boot.
+
+```mermaid
 flowchart TD
     Customer[("Cliente iFood<br/><b>[Person]</b>")]
 
