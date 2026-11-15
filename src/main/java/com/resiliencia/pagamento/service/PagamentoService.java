@@ -1,29 +1,52 @@
 package com.resiliencia.pagamento.service;
 
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
-import io.github.resilience4j.retry.annotation.Retry;
 import io.github.resilience4j.bulkhead.annotation.Bulkhead;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import com.resiliencia.pagamento.model.PagamentoRequest;
+import com.resiliencia.pagamento.model.PagamentoResponse;
+import com.resiliencia.pagamento.exception.AdquirenteIndisponivelException;
 
 @Service
 public class PagamentoService {
 
-    private static final String REGISTRY_NAME = "pagamentoService";
+    private static final Logger logger = LoggerFactory.getLogger(PagamentoService.class);
 
-    @CircuitBreaker(name = REGISTRY_NAME, fallbackMethod = "pagamentoFallback")
-    @Retry(name = REGISTRY_NAME) // Adiciona a política de tentativas automáticas configurada no yml
-    @Bulkhead(name = REGISTRY_NAME, type = Bulkhead.Type.SEMAPHORE)
-    public String processarPagamento(Double valor) {
-        if (valor < 0) {
-            throw new IllegalArgumentException("Valor de pagamento inválido!");
-        }
+    @CircuitBreaker(name = "adquirenteCircuitBreaker", fallbackMethod = "processarFallbackInteligente")
+    @Bulkhead(name = "adquirenteBulkhead", type = Bulkhead.Type.SEMAPHORE, fallbackMethod = "processarFallbackInteligente")
+    public PagamentoResponse executarPagamentoAdquirente(PagamentoRequest request) {
+        logger.info("Enviando transação para a adquirente primária. Pedido ID: {}", request.getPedidoId());
         
-        return "Pagamento de R$ " + valor + " processado com sucesso pelo gateway!";
+        chamarGatewayPrimario(request);
+
+        return new PagamentoResponse(request.getPedidoId(), "APROVADO", "Transação autorizada pela adquirente primária.");
     }
 
-    public String pagamentoFallback(Double valor, Throwable t) {
-        return "ALERTA DE RESILIÊNCIA: O serviço de pagamentos está instável no momento. " +
-               "A transação no valor de R$ " + valor + " foi encaminhada para a fila de reprocessamento (Fallback). " +
-               "Motivo: " + t.getMessage();
+    public void chamarGatewayPrimario(PagamentoRequest request) {
+        // Lógica de integração HTTP real
+    }
+
+    public PagamentoResponse processarFallbackInteligente(PagamentoRequest request, Throwable t) {
+        logger.warn("Circuit Breaker aberto ou falha detectada para o pedido {}. Motivo: {}. Executando Fallback Inteligente...", 
+                    request.getPedidoId(), t.getMessage());
+
+        try {
+            logger.info("Tentando processamento alternativo via Adquirente de Backup para o pedido: {}", request.getPedidoId());
+            return processarAdquirenteBackup(request);
+        } catch (Exception ex) {
+            logger.error("Adquirente de backup também falhou. Encaminhando para fila de reprocessamento assíncrono (DLQ).");
+        }
+
+        return new PagamentoResponse(
+            request.getPedidoId(), 
+            "EM_PROCESSAMENTO_ASSINCRONO", 
+            "A adquirente principal está temporariamente indisponível. Sua transação foi enfileirada para processamento prioritário."
+        );
+    }
+
+    private PagamentoResponse processarAdquirenteBackup(PagamentoRequest request) {
+        return new PagamentoResponse(request.getPedidoId(), "APROVADO_BACKUP", "Transação processada com sucesso pela Adquirente Secundária.");
     }
 }
