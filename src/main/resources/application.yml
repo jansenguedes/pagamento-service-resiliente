@@ -4,6 +4,8 @@ spring:
 
 resilience4j:
   circuitbreaker:
+    metrics:
+      enabled: true
     instances:
       adquirenteCircuitBreaker:
         registerHealthIndicator: true
@@ -19,6 +21,8 @@ resilience4j:
           - com.resiliencia.pagamento.exception.AdquirenteIndisponivelException
 
   bulkhead:
+    metrics:
+      enabled: true
     instances:
       adquirenteBulkhead:
         maxConcurrentCalls: 10
@@ -28,7 +32,19 @@ management:
   endpoints:
     web:
       exposure:
-        include: health, metrics, circuitbreakers
+        include: health,metrics,circuitbreakers,prometheus
+  endpoint:
+    prometheus:
+      enabled: true
   health:
     circuitbreakers:
       enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+      environment: staging
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+      slo:
+        http.server.requests: 50ms,100ms,250ms,500ms,1s,2s

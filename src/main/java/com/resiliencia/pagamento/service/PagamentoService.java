@@ -26,6 +26,8 @@ public class PagamentoService {
 
     public void chamarGatewayPrimario(PagamentoRequest request) {
         // Lógica de integração HTTP real
+        // Simulação de falha para experimento de caos em staging:
+        //throw new AdquirenteIndisponivelException("Timeout / indisponibilidade na adquirente primária");
     }
 
     public PagamentoResponse processarFallbackInteligente(PagamentoRequest request, Throwable t) {
